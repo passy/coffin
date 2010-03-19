@@ -5,7 +5,9 @@ backend storage (e.g. filesystem, database).
 """
 
 from coffin.template import Template as CoffinTemplate
+from coffin.common import env
 from jinja2 import TemplateNotFound
+from django.template.loaders import app_directories
 
 
 def find_template_source(name, dirs=None):
@@ -64,3 +66,14 @@ def select_template(template_name_list):
             continue
     # If we get here, none of the templates could be loaded
     raise TemplateNotFound(', '.join(template_name_list))
+
+
+class Jinja2Loader(app_directories.Loader):
+    is_usable = True
+
+    def load_template(self, template_name, template_dirs=None):
+        source, origin = self.load_template_source(template_name,
+                                                   template_dirs)
+        template = env.from_string(source, template_class=CoffinTemplate)
+        return template, origin
+
