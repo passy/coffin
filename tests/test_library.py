@@ -13,24 +13,25 @@ def test_nodes_and_extensions():
     """
     from coffin.common import env
 
-    # Jinja2 extensions, loaded from a Coffin library   
+    # Jinja2 extensions, loaded from a Coffin library
     assert env.from_string('a{% foo %}b').render() == 'a{foo}b'
 
     # Django tags, loaded from a Coffin library
-    assert Template('{% load foo_tag %}a{% foo_coffin %}b').render({}) == 'a{foo}b'
+    assert Template('{% load foo_tag %}a{% foo_coffin %}b').render(Context()) == 'a{foo}b'
 
 
 def test_filters():
     """Test availability of registered filters.
     """
+    from coffin.common import env
+
     # Filter registered with a Coffin library is available in Django and Jinja2
     assert env.from_string('a{{ "b"|foo }}c').render() == 'a{foo}c'
     assert Template('{% load foo_filter %}a{{ "b"|foo }}c').render(Context()) == 'a{foo}c'
 
-    # Filter registered with a Django library is not available in Jinja2
+    # Filter registered with a Django library is also available in Jinja2
     Template('{% load foo_filter_django %}{{ "b"|foo_django }}').render(Context())
-    assert_raises(Jinja2TemplateAssertionError,
-                  env.from_string, 'a{{ "b"|foo_django }}c')
+    assert env.from_string('a{{ "b"|foo }}c').render() == 'a{foo}c'
 
     # Some filters, while registered with a Coffin library, are only
     # available in Jinja2:
