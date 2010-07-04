@@ -2,10 +2,11 @@ from django.template import (
     Context as DjangoContext,
     add_to_builtins as django_add_to_builtins,
     import_library)
+from django.test.signals import template_rendered
 from jinja2 import Template as _Jinja2Template
 
 # Merge with ``django.template``.
-from django.template import __all__
+from django.template import __all__, Origin
 from django.template import *
 
 # Override default library class with ours
@@ -43,12 +44,16 @@ class Template(_Jinja2Template):
         here between implementing Django's interface while still supporting
         Jinja's own call syntax as well.
         """
+        self.origin = Origin(self.filename)
+        template_rendered.send(sender=self, template=self, context=context)
+
         if context is None:
             context = {}
         else:
             context = dict_from_django_context(context)
         assert isinstance(context, dict)  # Required for **-operator.
-        return super(Template, self).render(**context)
+        template = super(Template, self).render(**context)
+        return template
 
 
 def dict_from_django_context(context):

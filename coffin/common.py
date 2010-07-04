@@ -3,7 +3,6 @@ import warnings
 
 from django import dispatch
 from jinja2 import Environment, loaders
-from coffin.template import Library as CoffinLibrary
 
 __all__ = ('env',)
 
@@ -12,11 +11,13 @@ env = None
 _JINJA_I18N_EXTENSION_NAME = 'jinja2.ext.i18n'
 
 class CoffinEnvironment(Environment):
-    def __init__(self, filters={}, globals={}, tests={}, extensions=[], **kwargs):
+    def __init__(self, filters={}, globals={}, tests={}, loader=None, extensions=[], **kwargs):
+        if not loader:
+            loader = loaders.ChoiceLoader(self._get_loaders())
         all_ext = self._get_all_extensions()
-        
+
         extensions.extend(all_ext['extensions'])
-        super(CoffinEnvironment, self).__init__(extensions=extensions, **kwargs)
+        super(CoffinEnvironment, self).__init__(extensions=extensions, loader=loader, **kwargs)
         self.filters.update(filters)
         self.filters.update(all_ext['filters'])
         self.globals.update(globals)
@@ -26,7 +27,32 @@ class CoffinEnvironment(Environment):
 
         from coffin.template import Template as CoffinTemplate
         self.template_class = CoffinTemplate
-        
+
+    def _get_loaders(self):
+        """Tries to translate each template loader given in the Django settings
+        (:mod:`django.settings`) to a similarly-behaving Jinja loader.
+        Warns if a similar loader cannot be found.
+        Allows for Jinja2 loader instances to be placed in the template loader
+        settings.
+        """
+        loaders = []
+
+        from coffin.template.loaders import jinja_loader_from_django_loader
+
+        from django.conf import settings
+        for loader in settings.TEMPLATE_LOADERS:
+            if isinstance(loader, basestring):
+                loader_obj = jinja_loader_from_django_loader(loader)
+                if loader_obj:
+                    loaders.append(loader_obj)
+                # Having the coffin loader enabled is fine.
+                elif 'coffin' not in loader:
+                    warnings.warn('Cannot translate loader: %s' % loader)
+            else: # It's assumed to be a Jinja2 loader instance.
+                loaders.append(loader)
+        return loaders
+
+
     def _get_templatelibs(self):
         """Return an iterable of template ``Library`` instances.
 
@@ -52,14 +78,7 @@ class CoffinEnvironment(Environment):
                             # TODO: will need updating when #6587 lands
                             # libs.append(get_library(
                             #     "django.templatetags.%s" % os.path.splitext(f)[0]))
-                            l = get_library(os.path.splitext(f)[0])
-                            if not isinstance(l, CoffinLibrary):
-                                # If this is only a standard Django library,
-                                # convert it. This will ensure that Django
-                                # filters in that library are converted and
-                                # made available in Jinja.
-                                l = CoffinLibrary.from_django(l)
-                            libs.append(l)
+                            libs.append(get_library(os.path.splitext(f)[0]))
 
                         except InvalidTemplateLibrary:
                             pass

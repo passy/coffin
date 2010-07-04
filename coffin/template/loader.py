@@ -7,7 +7,9 @@ backend storage (e.g. filesystem, database).
 from coffin.template import Template as CoffinTemplate
 from coffin.common import env
 from jinja2 import TemplateNotFound
-from django.template.loaders import app_directories
+from django.template.loader import BaseLoader
+from django.template import TemplateDoesNotExist
+from django.conf import settings
 
 
 def find_template_source(name, dirs=None):
@@ -68,12 +70,15 @@ def select_template(template_name_list):
     raise TemplateNotFound(', '.join(template_name_list))
 
 
-class Jinja2Loader(app_directories.Loader):
+class Jinja2Loader(BaseLoader):
     is_usable = True
 
     def load_template(self, template_name, template_dirs=None):
-        source, origin = self.load_template_source(template_name,
-                                                   template_dirs)
-        template = env.from_string(source, template_class=CoffinTemplate)
-        return template, origin
+        """Load a jinja2 file if it ends with the specified ending."""
+        jinja2_ending = getattr(settings, 'JINJA2_FILE_EXTENSION', '.jinja2')
 
+        if template_name.endswith(jinja2_ending):
+            template = env.get_template(template_name)
+            return template, template.filename
+        else:
+            raise TemplateDoesNotExist(template_name)
